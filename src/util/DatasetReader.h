@@ -229,6 +229,16 @@ public:
 		return getImage_internal(id, 0);
 	}
 
+       	// added by Nitika
+       	std::string getImageName(int id){
+        	return files[id];
+       	}
+
+
+	ImageAndExposure* getImageCh(int id, int ch, bool forceLoadDirectly=false)
+	{
+		return getImage_internalChanelSplit(id, 0, ch);
+	}
 
 	inline float* getPhotometricGamma()
 	{
@@ -279,6 +289,67 @@ private:
 		}
 	}
 
+	ImageAndExposure* getImage_internalrgb2(int id,MinimalImageB* image_raw) {
+			ImageAndExposure* ret2 = undistort->undistort<unsigned char>(image_raw,
+							(exposures.size() == 0 ? 1.0f : exposures[id]),
+							(timestamps.size() == 0 ? 0.0 : timestamps[id]));
+			return ret2;
+		}
+
+	MinimalImageB* getImageRaw_internalRGBCh(int id, int unused, int ch)
+	{
+		if(!isZipped)
+		{
+			// CHANGE FOR ZIP FILE
+			return IOWrap::readImageBW_8URGBCh(files[id], ch);
+		}
+		else
+		{
+#if HAS_ZIPLIB
+			if(databuffer==0) databuffer = new char[widthOrg*heightOrg*6+10000];
+			zip_file_t* fle = zip_fopen(ziparchive, files[id].c_str(), 0);
+			long readbytes = zip_fread(fle, databuffer, (long)widthOrg*heightOrg*6+10000);
+
+			if(readbytes > (long)widthOrg*heightOrg*6)
+			{
+				printf("read %ld/%ld bytes for file %s. increase buffer!!\n", readbytes,(long)widthOrg*heightOrg*6+10000, files[id].c_str());
+				delete[] databuffer;
+				databuffer = new char[(long)widthOrg*heightOrg*30];
+				fle = zip_fopen(ziparchive, files[id].c_str(), 0);
+				readbytes = zip_fread(fle, databuffer, (long)widthOrg*heightOrg*30+10000);
+
+				if(readbytes > (long)widthOrg*heightOrg*30)
+				{
+					printf("buffer still to small (read %ld/%ld). abort.\n", readbytes,(long)widthOrg*heightOrg*30+10000);
+					exit(1);
+				}
+			}
+
+			return IOWrap::readStreamBW_8U(databuffer, readbytes);
+#else
+			printf("ERROR: cannot read .zip archive, as compile without ziplib!\n");
+			exit(1);
+#endif
+		}
+	}
+
+	ImageAndExposure* getImage_internalChanelSplit(int id, int unused, int ch)
+	{
+		MinimalImageB* minimg = getImageRaw_internalRGBCh(id, 0, ch);
+#if 0 //removed as undistort removes the color property
+		ImageAndExposure* ret2 ;
+		ret2 = getImage_internalrgb2(id,minimg);
+#endif
+
+
+		ImageAndExposure* ret2 = new ImageAndExposure(minimg->w, minimg->h, (timestamps.size() == 0 ? 0.0 : timestamps[id]));
+
+		memcpy(ret2->image, minimg->data, sizeof(float)*minimg->w*minimg->h);
+
+		delete minimg;
+		return ret2;
+	}
+ 
 
 	ImageAndExposure* getImage_internal(int id, int unused)
 	{
@@ -290,6 +361,8 @@ private:
 		delete minimg;
 		return ret2;
 	}
+
+
 
 	inline void loadTimestamps()
 	{

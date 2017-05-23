@@ -133,6 +133,7 @@ class FullSystem {
 public:
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	FullSystem();
+	FullSystem(ImageFolderReader* reader);
 	virtual ~FullSystem();
 
 	// adds a new frame, and creates point & residual structs.
@@ -275,6 +276,7 @@ private:
 
 
 	std::vector<float> allResVec;
+	ImageFolderReader* datareader;
 
 
 

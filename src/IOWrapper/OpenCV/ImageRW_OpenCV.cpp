@@ -50,6 +50,50 @@ MinimalImageB* readImageBW_8U(std::string filename)
 	return img;
 }
 
+MinimalImageB* readImageBW_8URGBCh(std::string filename, int ch)
+{
+	cv::Mat m = cv::imread(filename, CV_LOAD_IMAGE_COLOR);
+	if(m.rows*m.cols==0)
+	{
+		printf("cv::imread could not read image %s! this may segfault. \n", filename.c_str());
+		return 0;
+	}
+	if(m.type() != CV_8UC3)
+	{
+		printf("cv::imread did something strange! this may segfault. \n");
+		return 0;
+	}
+	//todo anil split channel and select appropriate one
+	printf("MAT column:%d and rows:%d \n",m.rows, m.cols);
+	cv::Mat m1;
+	cv::extractChannel(m,m1,ch);
+	MinimalImageB* img = new MinimalImageB(m1.cols, m1.rows);
+	memcpy(img->data, m1.data, m1.rows*m1.cols);
+	return img;
+}
+
+MinimalImageB* readImageBW_8URGBCh(std::string filename, int ch)
+{
+	cv::Mat m = cv::imread(filename, CV_LOAD_IMAGE_COLOR);
+	if(m.rows*m.cols==0)
+	{
+		printf("cv::imread could not read image %s! this may segfault. \n", filename.c_str());
+		return 0;
+	}
+	if(m.type() != CV_8UC3)
+	{
+		printf("cv::imread did something strange! this may segfault. \n");
+		return 0;
+	}
+	//todo anil split channel and select appropriate one
+	printf("MAT column:%d and rows:%d \n",m.rows, m.cols);
+	cv::Mat m1;
+	cv::extractChannel(m,m1,ch);
+	MinimalImageB* img = new MinimalImageB(m1.cols, m1.rows);
+	memcpy(img->data, m1.data, m1.rows*m1.cols);
+	return img;
+}
+
 MinimalImageB3* readImageRGB_8U(std::string filename)
 {
 	cv::Mat m = cv::imread(filename, CV_LOAD_IMAGE_COLOR);

@@ -202,6 +202,7 @@ public:
 
         /* call on reset */
         virtual void reset() {}
+        virtual void softreset() {}
 
 };
 

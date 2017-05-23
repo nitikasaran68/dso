@@ -29,12 +29,19 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <fstream>
+#include <string>
+#include <sstream>
 
 #include "IOWrapper/Output3DWrapper.h"
 #include "IOWrapper/ImageDisplay.h"
 
 
 #include <boost/thread.hpp>
+#include <opencv2/opencv.hpp>
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+
 #include "util/settings.h"
 #include "util/globalFuncs.h"
 #include "util/DatasetReader.h"
@@ -64,6 +71,7 @@ bool prefetch = false;
 float playbackSpeed=0;	// 0 for linearize (play as fast as possible, while sequentializing tracking & mapping). otherwise, factor on timestamps.
 bool preload=false;
 bool useSampleOutput=false;
+bool saveUndistortedImages=false;
 
 
 int mode=0;
@@ -320,6 +328,20 @@ void parseArgument(char* arg)
 		return;
 	}
 
+   	if(1==sscanf(arg,"save_undistorted=%d",&option))
+   	{
+           	if(option==1)
+           	{
+                   	saveUndistortedImages = true;
+                   	if(42==system("rm -rf images_undistorted")) printf("system call returned 42 - what are the odds?. This is only here to shut up the compiler.\n");
+                   	if(42==system("mkdir images_undistorted")) printf("system call returned 42 - what are the odds?. This is only here to shut up the compiler.\n");
+                   	if(42==system("rm -rf images_undistorted")) printf("system call returned 42 - what are the odds?. This is only here to shut up the compiler.\n");
+                   	if(42==system("mkdir images_undistorted")) printf("system call returned 42 - what are the odds?. This is only here to shut up the compiler.\n");
+                   	printf("SAVE UNDISTORTED IMAGES!\n");
+           	}
+           	return;
+   	}
+
 	if(1==sscanf(arg,"mode=%d",&option))
 	{
 
@@ -352,7 +374,15 @@ void parseArgument(char* arg)
 
 
 int main( int argc, char** argv )
-{
+{   
+    // added by Nitika
+    printf("===================== DSO Starting =====================\n");
+
+    // added by Nitika
+    std::ofstream KFfile;
+    KFfile.open("keyframes.txt");
+    KFfile.close();
+
 	//setlocale(LC_ALL, "");
 	for(int i=1; i<argc;i++)
 		parseArgument(argv[i]);
@@ -372,9 +402,6 @@ int main( int argc, char** argv )
 		exit(1);
 	}
 
-
-
-
 	int lstart=start;
 	int lend = end;
 	int linc = 1;
@@ -388,17 +415,9 @@ int main( int argc, char** argv )
 		linc = -1;
 	}
 
-
-
-	FullSystem* fullSystem = new FullSystem();
+	FullSystem* fullSystem = new FullSystem(reader);
 	fullSystem->setGammaFunction(reader->getPhotometricGamma());
 	fullSystem->linearizeOperation = (playbackSpeed==0);
-
-
-
-
-
-
 
     IOWrap::PangolinDSOViewer* viewer = 0;
 	if(!disableAllDisplay)
@@ -407,12 +426,8 @@ int main( int argc, char** argv )
         fullSystem->outputWrapper.push_back(viewer);
     }
 
-
-
     if(useSampleOutput)
         fullSystem->outputWrapper.push_back(new IOWrap::SampleOutputWrapper());
-
-
 
 
     // to make MacOS happy: run this in dedicated thread -- and use this one to run the GUI.
@@ -442,7 +457,8 @@ int main( int argc, char** argv )
             for(int ii=0;ii<(int)idsToPlay.size(); ii++)
             {
                 int i = idsToPlay[ii];
-                preloadedImages.push_back(reader->getImage(i));
+                ImageAndExposure *img_ = reader->getImage(i);
+               	preloadedImages.push_back(img_);
             }
         }
 
@@ -463,12 +479,42 @@ int main( int argc, char** argv )
 
             int i = idsToPlay[ii];
 
-
             ImageAndExposure* img;
             if(preload)
                 img = preloadedImages[ii];
             else
                 img = reader->getImage(i);
+
+			if(saveUndistortedImages)
+            {
+               	int width = img->w;
+               	int height = img->h;
+               	int row,col,indx;
+               	float val;
+
+               	cv::Mat M(img->h,img->w, CV_8UC1, cv::Scalar(0));
+
+               	for(row=0;row < height; row++)
+               	{
+                   	for(col=0; col< width; col++)
+                   	{
+                           	indx = (row*width) + col;
+                           	val = img->image[indx];
+                           	if(val < 0) M.data[indx] = 0;
+                           	else if(val > 255) M.data[indx] = 255;
+                           	else M.data[indx] = floor(val);
+                   	}
+                }
+ 
+ 
+                std::istringstream iss(reader->getImageName(i));
+                std::string temp;
+                std::string name;
+ 
+                while(std::getline(iss,temp,'/')) name = temp;
+                    name = "images_undistorted/" + name;
+                cv::imwrite(name.c_str(),M);    
+            }
 
 
 
@@ -487,12 +533,7 @@ int main( int argc, char** argv )
                 }
             }
 
-
-
             if(!skipFrame) fullSystem->addActiveFrame(img, i);
-
-
-
 
             delete img;
 
@@ -507,24 +548,54 @@ int main( int argc, char** argv )
 
                     for(IOWrap::Output3DWrapper* ow : wraps) ow->reset();
 
-                    fullSystem = new FullSystem();
+
+                    fullSystem = new FullSystem(reader);
                     fullSystem->setGammaFunction(reader->getPhotometricGamma());
                     fullSystem->linearizeOperation = (playbackSpeed==0);
-
-
                     fullSystem->outputWrapper = wraps;
-
                     setting_fullResetRequested=false;
                 }
             }
 
             if(fullSystem->isLost)
             {
-                    printf("LOST!!\n");
-                    break;
+                    printf("LOST!! in frame no:%d id no:%d \n",i,ii);
+                    //break;
+
+                    printf("PS-SE SOFT RESETTING!\n");
+
+                    std::vector<IOWrap::Output3DWrapper*> wraps = fullSystem->outputWrapper;
+                    delete fullSystem;
+
+                    for(IOWrap::Output3DWrapper* ow : wraps)
+                    	ow->softreset();
+
+
+                    ii=ii+30; //Ideally calculate fps and jump over
+
+                    printf("After soft reset!! in frame no:%d id no:%d \n",idsToPlay[ii],ii);
+
+                    fullSystem = new FullSystem(reader);
+                    fullSystem->setGammaFunction(reader->getPhotometricGamma());
+                    fullSystem->linearizeOperation = (playbackSpeed==0);
+                    fullSystem->outputWrapper = wraps;
+
+                    ImageAndExposure* img;
+                    if(preload)
+                        img = preloadedImages[ii];
+                    else
+                        img = reader->getImage(i);
+                    usleep(500);
+                    fullSystem->addActiveFrame(img, i);
+                    delete img;
+                    ii=ii+1;
+
+
             }
 
         }
+
+
         fullSystem->blockUntilMappingIsFinished();
         clock_t ended = clock();
         struct timeval tv_end;
@@ -560,6 +631,57 @@ int main( int argc, char** argv )
             tmlog.flush();
             tmlog.close();
         }
+
+        // added by Nitika
+
+        FILE *fimfile=fopen("frame_images.txt","w");
+        std::string fname;
+        double fts; 
+
+	    for(int ii=0;ii<(int)idsToPlay.size(); ii++){
+	        int i = idsToPlay[ii];
+	        fname = reader->getImageName(i);
+	        
+	        if(saveUndistortedImages)
+	        {
+	                std::istringstream iss(reader->getImageName(i));
+	                std::string temp;
+	                std::string name;
+	                
+	                while(std::getline(iss,temp,'/')) name = temp;
+	                name = "images_undistorted/" + name;
+	                
+	                fname = realpath(name.c_str(), NULL);
+	                }
+
+	                fts = reader->getTimestamp(i);
+
+	                fprintf(fimfile,"%lf %s\n",fts,fname.c_str() );
+
+	    }
+
+		fclose(fimfile);
+
+        std::ifstream kffile;
+        // std::ofstream kfimfile;
+        FILE *kfimfile=fopen("keyframe_images.txt","w");
+
+        kffile.open("keyframes.txt");
+        std::string kfname;
+        double kfts; 
+        int kfid;
+        // std::setprecision( std::numeric_limits<int>::max() );
+
+        while(kffile >> kfid){
+               	kfname = reader->getImageName(kfid);
+               	kfts = reader->getTimestamp(kfid);
+               	fprintf(kfimfile,"%lf %s\n",kfts,kfname.c_str() );
+        	// 	kfimfile << kfts << " " << kfname << std::endl;
+    	}
+
+	   	kffile.close();
+   		fclose(kfimfile);
+
 
     });
 

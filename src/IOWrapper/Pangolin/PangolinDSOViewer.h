@@ -79,16 +79,19 @@ public:
 	virtual void join();
 
 	virtual void reset();
+	virtual void softreset();
+
 private:
 
 	bool needReset;
+	bool needSoftReset;
 	void reset_internal();
+	void reset_soft_internal();
 	void drawConstraints();
 
 	boost::thread runThread;
 	bool running;
 	int w,h;
-
 
 
 	// images rendering

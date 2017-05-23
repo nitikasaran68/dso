@@ -32,6 +32,14 @@
 #include "FullSystem/FullSystem.h"
 #include "FullSystem/ImmaturePoint.h"
 
+
+
+//#define BLURT(msg) printf ("Line: %d File: %s Function: %s ::%s\n",\
+                      __LINE__, __FILE__, __func__,msg)
+
+//#define BLURT(msg) printf ("Line: %d Function: %s ::%s\n",\
+                      __LINE__, __func__,msg)
+
 namespace dso
 {
 namespace IOWrap
@@ -64,6 +72,8 @@ PangolinDSOViewer::PangolinDSOViewer(int w, int h, bool startRunThread)
 	}
 
 	needReset = false;
+	needSoftReset = false;
+
 
 
     if(startRunThread)
@@ -82,7 +92,7 @@ PangolinDSOViewer::~PangolinDSOViewer()
 void PangolinDSOViewer::run()
 {
 	printf("START PANGOLIN!\n");
-
+	BLURT("in");
 	pangolin::CreateWindowAndBind("Main",2*w,2*h);
 	const int UI_WIDTH = 180;
 
@@ -124,7 +134,7 @@ void PangolinDSOViewer::run()
 	// parameter reconfigure gui
 	pangolin::CreatePanel("ui").SetBounds(0.0, 1.0, 0.0, pangolin::Attach::Pix(UI_WIDTH));
 
-	pangolin::Var<int> settings_pointCloudMode("ui.PC_mode",1,1,4,false);
+	pangolin::Var<int> settings_pointCloudMode("ui.PC_mode",5,0,5,false);
 
 	pangolin::Var<bool> settings_showKFCameras("ui.KFCam",false,true);
 	pangolin::Var<bool> settings_showCurrentCamera("ui.CurrCam",true,true);
@@ -209,6 +219,9 @@ void PangolinDSOViewer::run()
 			float sd=0;
 			for(float d : lastNMappingMs) sd+=d;
 			settings_mapFps=lastNMappingMs.size()*1000.0f / sd;
+
+			//printf("FPS MAP: %d \n", (int)(lastNMappingMs.size()*1000.0f / sd));
+
 			openImagesMutex.unlock();
 		}
 		{
@@ -216,6 +229,8 @@ void PangolinDSOViewer::run()
 			float sd=0;
 			for(float d : lastNTrackingMs) sd+=d;
 			settings_trackFps = lastNTrackingMs.size()*1000.0f / sd;
+			//printf("FPS TRACK: %d \n", (int)(lastNTrackingMs.size()*1000.0f / sd));
+
 			model3DMutex.unlock();
 		}
 
@@ -286,6 +301,8 @@ void PangolinDSOViewer::run()
 
 
 	    if(needReset) reset_internal();
+	    if(needSoftReset) reset_soft_internal();
+
 	}
 
 
@@ -312,8 +329,14 @@ void PangolinDSOViewer::reset()
 	needReset = true;
 }
 
+void PangolinDSOViewer::softreset()
+{
+	needSoftReset = true;
+}
 void PangolinDSOViewer::reset_internal()
 {
+	BLURT("in");
+
 	model3DMutex.lock();
 	for(size_t i=0; i<keyframes.size();i++) delete keyframes[i];
 	keyframes.clear();
@@ -321,7 +344,6 @@ void PangolinDSOViewer::reset_internal()
 	keyframesByKFID.clear();
 	connections.clear();
 	model3DMutex.unlock();
-
 
 	openImagesMutex.lock();
 	internalVideoImg->setBlack();
@@ -334,8 +356,34 @@ void PangolinDSOViewer::reset_internal()
 }
 
 
+void PangolinDSOViewer::reset_soft_internal()
+{
+	BLURT("in");
+
+	model3DMutex.lock();
+	//for(size_t i=0; i<keyframes.size();i++) delete keyframes[i];
+	//keyframes.clear();
+	//allFramePoses.clear();
+	keyframesByKFID.clear();
+	//connections.clear();
+	model3DMutex.unlock();
+
+
+	openImagesMutex.lock();
+	internalVideoImg->setBlack();
+	internalKFImg->setBlack();
+	internalResImg->setBlack();
+	videoImgChanged= kfImgChanged= resImgChanged=true;
+	openImagesMutex.unlock();
+
+
+	needSoftReset = false;
+}
+
+
 void PangolinDSOViewer::drawConstraints()
 {
+	BLURT("in");
 	if(settings_showAllConstraints)
 	{
 		// draw constraints
@@ -421,6 +469,7 @@ void PangolinDSOViewer::drawConstraints()
 
 void PangolinDSOViewer::publishGraph(const std::map<uint64_t,Eigen::Vector2i> &connectivity)
 {
+	BLURT("in");
     if(!setting_render_display3D) return;
     if(disableAllDisplay) return;
 
@@ -468,6 +517,7 @@ void PangolinDSOViewer::publishKeyframes(
 		bool final,
 		CalibHessian* HCalib)
 {
+	BLURT("in");
 	if(!setting_render_display3D) return;
     if(disableAllDisplay) return;
 
@@ -486,6 +536,7 @@ void PangolinDSOViewer::publishKeyframes(
 void PangolinDSOViewer::publishCamPose(FrameShell* frame,
 		CalibHessian* HCalib)
 {
+	BLURT("in");
     if(!setting_render_display3D) return;
     if(disableAllDisplay) return;
 
@@ -505,6 +556,7 @@ void PangolinDSOViewer::publishCamPose(FrameShell* frame,
 
 void PangolinDSOViewer::pushLiveFrame(FrameHessian* image)
 {
+	BLURT("in");
 	if(!setting_render_displayVideo) return;
     if(disableAllDisplay) return;
 
@@ -526,6 +578,7 @@ bool PangolinDSOViewer::needPushDepthImage()
 void PangolinDSOViewer::pushDepthImage(MinimalImageB3* image)
 {
 
+	BLURT("in");
     if(!setting_render_displayDepth) return;
     if(disableAllDisplay) return;
 

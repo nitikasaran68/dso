@@ -58,7 +58,7 @@ KeyFrameDisplay::KeyFrameDisplay()
 
 	my_scaledTH =1e10;
 	my_absTH = 1e10;
-	my_displayMode = 1;
+	my_displayMode = 0;
 	my_minRelBS = 0;
 	my_sparsifyFactor = 1;
 
@@ -86,6 +86,21 @@ void KeyFrameDisplay::setFromKF(FrameHessian* fh, CalibHessian* HCalib)
 {
 	setFromF(fh->shell, HCalib);
 
+    // Get the color channel
+	ImageFolderReader* freader = fh->framereader;
+    int KfId = fh->shell->incoming_id;
+
+    ImageAndExposure* imgR;
+    imgR = freader->getImageCh(KfId,0);
+
+    ImageAndExposure* imgG;
+    imgG = freader->getImageCh(KfId,1);
+
+    ImageAndExposure* imgB;
+    imgB = freader->getImageCh(KfId,2);
+
+    printf(" width:%d and height:%d of R channel\n", imgR->w,imgR->h);
+
 	// add all traces, inlier and outlier points.
 	int npoints = 	fh->immaturePoints.size() +
 					fh->pointHessians.size() +
@@ -106,6 +121,20 @@ void KeyFrameDisplay::setFromKF(FrameHessian* fh, CalibHessian* HCalib)
 		for(int i=0;i<patternNum;i++)
 			pc[numSparsePoints].color[i] = p->color[i];
 
+        for(int pnt=0; pnt<patternNum; pnt++) {
+            int dx = patternP[pnt][0];
+            int dy = patternP[pnt][1];
+
+            int u = p->u;
+            int v = p->v;
+
+            pc[numSparsePoints].colorR[pnt] = imgR->image[(((v+dy)*imgR->w)+(u+dx))];
+            pc[numSparsePoints].colorG[pnt] = imgG->image[(((v+dy)*imgG->w)+(u+dx))];
+            pc[numSparsePoints].colorB[pnt] = imgB->image[(((v+dy)*imgB->w)+(u+dx))];
+
+        }
+
+
 		pc[numSparsePoints].u = p->u;
 		pc[numSparsePoints].v = p->v;
 		pc[numSparsePoints].idpeth = (p->idepth_max+p->idepth_min)*0.5f;
@@ -120,6 +149,22 @@ void KeyFrameDisplay::setFromKF(FrameHessian* fh, CalibHessian* HCalib)
 	{
 		for(int i=0;i<patternNum;i++)
 			pc[numSparsePoints].color[i] = p->color[i];
+
+        for(int pnt=0; pnt<patternNum; pnt++) {
+            int dx = patternP[pnt][0];
+            int dy = patternP[pnt][1];
+
+            int u = p->u;
+            int v= 	p->v;
+
+/*            printf("dx:%d, dy:%d, u:%f , v:%f\n",dx,dy,p->u,p->v );*/
+
+            pc[numSparsePoints].colorR[pnt] = imgR->image[(((v+dy)*imgR->w)+(u+dx))];
+            pc[numSparsePoints].colorG[pnt] = imgG->image[(((v+dy)*imgG->w)+(u+dx))];
+            pc[numSparsePoints].colorB[pnt] = imgB->image[(((v+dy)*imgB->w)+(u+dx))];
+
+        }
+
 		pc[numSparsePoints].u = p->u;
 		pc[numSparsePoints].v = p->v;
 		pc[numSparsePoints].idpeth = p->idepth_scaled;
@@ -135,6 +180,19 @@ void KeyFrameDisplay::setFromKF(FrameHessian* fh, CalibHessian* HCalib)
 	{
 		for(int i=0;i<patternNum;i++)
 			pc[numSparsePoints].color[i] = p->color[i];
+
+        for(int pnt=0; pnt<patternNum; pnt++) {
+            int dx = patternP[pnt][0];
+            int dy = patternP[pnt][1];
+
+            int u = p->u;
+            int v= 	p->v;
+
+            pc[numSparsePoints].colorR[pnt] = imgR->image[(((v+dy)*imgR->w)+(u+dx))];
+            pc[numSparsePoints].colorG[pnt] = imgG->image[(((v+dy)*imgG->w)+(u+dx))];
+            pc[numSparsePoints].colorB[pnt] = imgB->image[(((v+dy)*imgB->w)+(u+dx))];
+
+        }
 		pc[numSparsePoints].u = p->u;
 		pc[numSparsePoints].v = p->v;
 		pc[numSparsePoints].idpeth = p->idepth_scaled;
@@ -149,6 +207,19 @@ void KeyFrameDisplay::setFromKF(FrameHessian* fh, CalibHessian* HCalib)
 	{
 		for(int i=0;i<patternNum;i++)
 			pc[numSparsePoints].color[i] = p->color[i];
+
+        for(int pnt=0; pnt<patternNum; pnt++) {
+            int dx = patternP[pnt][0];
+            int dy = patternP[pnt][1];
+
+            int u = p->u;
+            int v= 	p->v;
+
+            pc[numSparsePoints].colorR[pnt] = imgR->image[(((v+dy)*imgR->w)+(u+dx))];
+            pc[numSparsePoints].colorG[pnt] = imgG->image[(((v+dy)*imgG->w)+(u+dx))];
+            pc[numSparsePoints].colorB[pnt] = imgB->image[(((v+dy)*imgB->w)+(u+dx))];
+
+        }
 		pc[numSparsePoints].u = p->u;
 		pc[numSparsePoints].v = p->v;
 		pc[numSparsePoints].idpeth = p->idepth_scaled;
@@ -213,7 +284,7 @@ bool KeyFrameDisplay::refreshPC(bool canRefresh, float scaledTH, float absTH, in
 
 		if(my_displayMode==1 && originalInputSparse[i].status != 1 && originalInputSparse[i].status!= 2) continue;
 		if(my_displayMode==2 && originalInputSparse[i].status != 1) continue;
-		if(my_displayMode>2) continue;
+		//if(my_displayMode>2) continue;
 
 		if(originalInputSparse[i].idpeth < 0) continue;
 
@@ -278,9 +349,17 @@ bool KeyFrameDisplay::refreshPC(bool canRefresh, float scaledTH, float absTH, in
 					tmpColorBuffer[vertexBufferNumPoints][2] = 255;
 				}
 
-			}
-			else
-			{
+			  }
+               else if(my_displayMode==5) { //colored point cloud
+
+            	  // printf("ColorR:%d, color G:%d, color B:%d \n", originalInputSparse[i].colorR[pnt],originalInputSparse[i].colorG[pnt],originalInputSparse[i].colorB[pnt] );
+                     tmpColorBuffer[vertexBufferNumPoints][2] = originalInputSparse[i].colorR[pnt];
+                     tmpColorBuffer[vertexBufferNumPoints][1] = originalInputSparse[i].colorG[pnt];
+                     tmpColorBuffer[vertexBufferNumPoints][0] = originalInputSparse[i].colorB[pnt];
+
+               }
+           		else
+         		{
 				tmpColorBuffer[vertexBufferNumPoints][0] = originalInputSparse[i].color[pnt];
 				tmpColorBuffer[vertexBufferNumPoints][1] = originalInputSparse[i].color[pnt];
 				tmpColorBuffer[vertexBufferNumPoints][2] = originalInputSparse[i].color[pnt];

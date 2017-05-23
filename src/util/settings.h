@@ -29,6 +29,9 @@
 #include <string>
 #include <cmath>
 
+//#define BLURT(msg) printf ("PS-SE Ln: %d Func: %s ::%s\n",\
+                      __LINE__, __func__,msg)
+#define BLURT(msg)
 
 namespace dso
 {

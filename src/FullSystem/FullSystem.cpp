@@ -54,6 +54,10 @@
 
 #include "util/ImageAndExposure.h"
 
+#include "util/DatasetReader.h"
+
+
+
 #include <cmath>
 
 namespace dso
@@ -208,6 +212,11 @@ FullSystem::~FullSystem()
 	delete ef;
 }
 
+
+FullSystem::FullSystem(ImageFolderReader* reader) : FullSystem()
+{
+	datareader = reader;
+}
 void FullSystem::setOriginalCalib(const VecXf &originalCalib, int originalW, int originalH)
 {
 
@@ -308,10 +317,23 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 		lastF_2_fh_tries.push_back(lastF_2_slast); // assume zero motion.
 		lastF_2_fh_tries.push_back(SE3()); // assume zero motion FROM KF.
 
+		Mat44f T; // Dummy Value
+	    T << 0.992954,-0.0191112,-0.116947,-0.00891328,
+	    	 0.0159005,0.999472,-0.0283262,-0.0134551,
+	    	 0.117426,0.0262671,0.992734,0.129824,
+	    	 0,0,0,1;
+
+		SE3 from_imu = SE3(T); // PS-SE default construction.. But how to feed it with actual value
+
+		lastF_2_fh_tries.push_back(from_imu);
+
+		//lastF_2_fh_tries
+
 
 		// just try a TON of different initializations (all rotations). In the end,
 		// if they don't work they will only be tried on the coarsest level, which is super fast anyway.
 		// also, if tracking rails here we loose, so we really, really want to avoid that.
+		printf("PS-SE Started to generate the 27 ties for matching\n");
 		for(float rotDelta=0.02; rotDelta < 0.05; rotDelta++)
 		{
 			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1,rotDelta,0,0), Vec3(0,0,0)));			// assume constant motion.
@@ -412,6 +434,8 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 			}
 		}
 
+//PS-SE :- if I goes more then 5-15 tries we should fill the values using IMU so that it can continue.
+//		Or we can restart
 
         if(haveOneGood &&  achievedRes[0] < lastCoarseRMSE[0]*setting_reTrackThreshold)
             break;
@@ -424,6 +448,7 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 		flowVecs = Vec3(0,0,0);
 		aff_g2l = aff_last_2_l;
 		lastF_2_fh = lastF_2_fh_tries[0];
+		//initialized=false; //PS-SE lets restart
 	}
 
 	lastCoarseRMSE = achievedRes;
@@ -811,10 +836,11 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
 	FrameShell* shell = new FrameShell();
 	shell->camToWorld = SE3(); 		// no lock required, as fh is not used anywhere yet.
 	shell->aff_g2l = AffLight(0,0);
-    shell->marginalizedAt = shell->id = allFrameHistory.size();
-    shell->timestamp = image->timestamp;
-    shell->incoming_id = id;
+        shell->marginalizedAt = shell->id = allFrameHistory.size();
+        shell->timestamp = image->timestamp;
+        shell->incoming_id = id;
 	fh->shell = shell;
+	fh->framereader = datareader;
 	allFrameHistory.push_back(shell);
 
 
@@ -830,12 +856,13 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
 		// use initializer!
 		if(coarseInitializer->frameID<0)	// first frame set. fh is kept by coarseInitializer.
 		{
+			BLURT("calling coarseInitializer");
 
 			coarseInitializer->setFirst(&Hcalib, fh);
 		}
 		else if(coarseInitializer->trackFrame(fh, outputWrapper))	// if SNAPPED
 		{
-
+			BLURT("calling initializeFromInitializer");
 			initializeFromInitializer(fh);
 			lock.unlock();
 			deliverTrackedFrame(fh, true);
@@ -862,7 +889,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
 		if(!std::isfinite((double)tres[0]) || !std::isfinite((double)tres[1]) || !std::isfinite((double)tres[2]) || !std::isfinite((double)tres[3]))
         {
             printf("Initial Tracking failed: LOST!\n");
-			isLost=true;
+			isLost=true;//PS-SE lets push it
             return;
         }
 
@@ -887,6 +914,14 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
 
 		}
 
+        // added by Nitika
+        if(needToMakeKF){
+            std::ofstream KFfile;
+ 
+            KFfile.open("keyframes.txt", std::ios_base::app);
+            KFfile << id << std::endl;
+            KFfile.close();
+        }
 
 
 
@@ -1108,17 +1143,17 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 	{
 		if(allKeyFramesHistory.size()==2 && rmse > 20*benchmark_initializerSlackFactor)
 		{
-			printf("I THINK INITIALIZATINO FAILED! Resetting.\n");
+			printf("I THINK INITIALIZATINO FAILED! Resetting 1.\n");
 			initFailed=true;
 		}
 		if(allKeyFramesHistory.size()==3 && rmse > 13*benchmark_initializerSlackFactor)
 		{
-			printf("I THINK INITIALIZATINO FAILED! Resetting.\n");
+			printf("I THINK INITIALIZATINO FAILED! Resetting 2.\n");
 			initFailed=true;
 		}
 		if(allKeyFramesHistory.size()==4 && rmse > 9*benchmark_initializerSlackFactor)
 		{
-			printf("I THINK INITIALIZATINO FAILED! Resetting.\n");
+			printf("I THINK INITIALIZATINO FAILED! Resetting 3.\n");
 			initFailed=true;
 		}
 	}

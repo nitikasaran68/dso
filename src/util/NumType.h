@@ -95,6 +95,7 @@ typedef Eigen::Matrix<double,2,1> Vec2;
 typedef Eigen::Matrix<double,Eigen::Dynamic,1> VecX;
 
 typedef Eigen::Matrix<float,3,3> Mat33f;
+typedef Eigen::Matrix<double,4,4> Mat44f;
 typedef Eigen::Matrix<float,10,3> Mat103f;
 typedef Eigen::Matrix<float,2,2> Mat22f;
 typedef Eigen::Matrix<float,3,1> Vec3f;
@@ -130,7 +131,7 @@ typedef Eigen::Matrix<float,8,1> Vec8f;
 typedef Eigen::Matrix<float,10,1> Vec10f;
 typedef Eigen::Matrix<float,6,6> Mat66f;
 typedef Eigen::Matrix<float,4,1> Vec4f;
-typedef Eigen::Matrix<float,4,4> Mat44f;
+typedef Eigen::Matrix<double,4,4> Mat44f;
 typedef Eigen::Matrix<float,12,12> Mat1212f;
 typedef Eigen::Matrix<float,12,1> Vec12f;
 typedef Eigen::Matrix<float,13,13> Mat1313f;
